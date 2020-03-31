@@ -1,14 +1,15 @@
 #pragma once
 #include "../api/IPrimBusinessLogicRegistrar.h"
 
-/// Make use of the single interception point to 
+/// Since all usd/ufe calls go through the 'classifyXformOp' method, we can simply 
+/// intercept the calls, and force all attributes to be locked for editing. 
 /// 
 class ReadOnlyLogic
   : public IPrimBusinessLogic
 {
 public:
 
-    // grab the info from next in the chain, and modify so we lock the value.
+    // grab the info from 'next' in the logic chain. Modify the returned result so that we lock the value.
     XformOpInfo classifyXformOp(const UsdGeomXformable& xform, const UsdGeomXformOp& xformOP) override
     {
         // grab result from next up the chain
@@ -22,7 +23,8 @@ public:
 };
 
 
-/// So this is a 
+/// So this is a very simplistic overview of how the lighting department might want to implement
+/// their business logic. 
 /// 
 class LightingDeptLogic
   : public IPrimBusinessLogic
@@ -42,8 +44,9 @@ public:
     // 
     enum CurrentMode
     {
-        kEditingLightRig, ///< only display the default values, and unlock all rig asset attributes
         kEditingLightAnim, ///< lock all rig asset attrs, enable anim controls
+        kEditingLightRig, ///< only display the default values, and unlock all rig asset attributes
+        kEditingLightShaders, ///< only display the default values, and unlock all shader assets
         kTestingAnimation, ///< unlock everything, but write all changes to the 'temp_lighting_layer'
         kSupportTicket_AnimUser, ///< load the AnimDeptLogic, and override to allow editing of lighting assets
         kSupportTicket_DIUser, ///< load the DIDeptLogic, and override to allow editing of lighting assets
@@ -56,9 +59,12 @@ public:
     XformOpInfo classifyXformOp(const UsdGeomXformable& xform, const UsdGeomXformOp& xformOP) override
     {
         // depending on the current user mode, allow/prevent various differing things.... 
+        // It's probably they'd want to change modes at runtime. 
         switch(m_mode)
         {
         case kEditingLightAnim: return _classifyXformOp_editLightAnim(xform, xformOP);
+        case kEditingLightRig: return _classifyXformOp_editLightRig(xform, xformOP);
+        case kEditingLightShaders: return _classifyXformOp_editLightShaders(xform, xformOP);
         case kTestingAnimation: return _classifyXformOp_testingAnimation(xform, xformOP);
         case kSupportTicket_AnimUser: return _classifyXformOp_supportTicket_animUser(xform, xformOP);
         case kSupportTicket_DIUser: return _classifyXformOp_supportTicket_diUser(xform, xformOP);
@@ -69,43 +75,26 @@ public:
     }
 };
 
-// and then assuming we have some python 
+// we will probably need some form of plugin mechanism here. I want to be able to tell maya-usd
+// that I have some business logic I want it to use, effectively a studio plugin to maya-usd.
 MStatus initBusinessLogic()
 {
     // by default, make everything read only
     IPrimBusinessLogicRegistrar::pushBusinessLogic(new ReadOnlyLogic);
 
+    // create the correct logic based on the users department
     if(getEnv(USER_IS_IN_LIGHTING_DEPT))
     {
-        // if the user is in lighting, provide logic that:
-        // 
-        //  - enables editing of lighting assets
-        //  - reads/writes default time values only
-        //  - everything else is read only
-        // 
         IPrimBusinessLogicRegistrar::pushBusinessLogic(new LightingDeptBusinessLogic);
     }
     else
     if(getEnv(USER_IS_IN_ANIM_DEPT))
     {
-        // if the user is in anim, provide logic that:
-        // 
-        //  - enables editing of anim controls only
-        //  - reads/writes from sampled keys always
-        //  - everything else is read only
-        // 
         IPrimBusinessLogicRegistrar::pushBusinessLogic(new AnimDeptBusinessLogic);
     }
     else
     if(getEnv(USER_IS_IN_RIGGING_DEPT))
     {
-        // if the user is in rigging, provide logic that:
-        // 
-        //  - enables editing of rigging assets, default time only
-        //  - enables editing of anim controls, default time only
-        //  - department has a toggle that allows editing of anim controls, but only if current edit target is: "rigging_test_controls"
-        //  - everything else is read only
-        // 
         IPrimBusinessLogicRegistrar::pushBusinessLogic(new RiggingDeptBusinessLogic);
     }
 }
