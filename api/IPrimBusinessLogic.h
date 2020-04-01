@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdint>
 
+
 /// broadly speaking the business logic is going to break down into two main areas. 
 /// 
 /// 1: Given some xform op, query business logic of studio...
@@ -26,6 +27,11 @@ class IPrimBusinessLogic
     IPrimBusinessLogic* m_next = 0;
 public:
 
+    //-----------------------------------------------------------------------------------------------------------------------
+    /// The business logic is ordered in a chain. If the first business logic in the chain handles the request, cool. If not,
+    /// the request is passed down the chain. 
+    //-----------------------------------------------------------------------------------------------------------------------
+
     /// the business logics work as a stack. If a logic intercepts some request, it handles it. 
     /// otherwise it passes the request along to the next in the chain. 
     IPrimBusinessLogic* next() const
@@ -34,6 +40,10 @@ public:
     /// good software design this is not.
     void setNext(IPrimBusinessLogic* next)
         { m_next = next; }
+        
+    //-----------------------------------------------------------------------------------------------------------------------
+    /// Having thrown this code together quickly, 
+    //-----------------------------------------------------------------------------------------------------------------------
 
     // A set of flags, some of which are easy enough to generate automatically. 
     // kUseDefaultTIme, and kLock need to be provided by the studio and departments business logic. 
@@ -88,41 +98,8 @@ public:
     virtual XformOpInfo classifyXformOp(const UsdGeomXformable& xform, const UsdGeomXformOp& xformOP);
 
     //-----------------------------------------------------------------------------------------------------------------------
-    /// If we are to support 
-    /// 
-    /// bool attachRotateManip(UsdGeomXformable& xform, IPrimBusinessLogic* logic, bool canCreate = true)
-    /// {
-    ///    //
-    ///    // is the department or studio doing something different for rotation?
-    ///    //  
-    ///    if(UsdGeomXformOp op = logic->defaultRotateOp(xform))
-    ///    {
-    ///      XformOpInfo info = logic->classifyXformOp(xform, op);
-    ///      if(!info.locked() && info.isTranslateOp())
-    ///      {
-    ///        setUpRotateManipOnAttr(xform, info);
-    ///        return true;
-    ///      }
-    ///    }
-    ///    else
-    ///    if(canCreate)
-    ///    {
-    ///      //
-    ///      // now query the department, or studio, if it can create a default rotation op
-    ///      //
-    ///      if(UsdGeomXformOp op = logic->createRotateOp(xform))
-    ///      {
-    ///        XformOpInfo info = logic->classifyXformOp(xform, op);
-    ///        if(!info.locked() && info.isTranslateOp())
-    ///        {
-    ///          setUpRotateManipOnAttr(xform, info);
-    ///          return true;
-    ///        }
-    ///      }
-    ///    }
-    ///    return false;
-    /// }
-    /// 
+    /// Given some prim, these methods return the default translate/scale/rotate values that UFE should manipulate. 
+    /// They should not create the attributes!
     //-----------------------------------------------------------------------------------------------------------------------
 
     /// \brief  given some xform, defer to the prim business logic handler of the studio, and ask for which translation value
@@ -149,6 +126,11 @@ public:
         // just look for the scale op that has the name "". 
         return findScaleOpWithNoName(xform);  
     }
+
+    //-----------------------------------------------------------------------------------------------------------------------
+    /// Should maya-usd need to insert a new translate/scale/rotate op (because the op was not found), maya-usd will
+    /// call these methods, and it's up to the studio's business logic to do the right thing. 
+    //-----------------------------------------------------------------------------------------------------------------------
 
     /// \brief  If the call to defaultRotateOp fails to find an op, we need to create a new op, 
     ///         and insert it into the correct place within the chain of operations. 

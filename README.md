@@ -32,3 +32,7 @@ Finally, on the animal logic side of things, we'd provide one or more logic obje
 * Computing the coordinate frame for the manipulator. It's assumed you can simply iterate over the xform ops, accumulating a matrix as you go. 
 * Quality code - this is just a rough sketch!
 
+## Possible things to think about....
+
+* Whilst this sketch looks primarily at UsdGeomXformable ops, I get the feeling this should be made more generic to work for all attributes. The same problems that apply when setting a translate value, are sadly the same problem we face when setting a cameras FOV. 
+* I am assuming that maya-usd would have a fallback mechanism to work based on a database of prim types, and their attributes _(and whether they should be keyed or not, etc)_. This would be nice if the config for this was stored as USD data _(because then overrides could be inserted at the studio/dept/user/shot level, and stage composition should take care of setting sensible defaults)_.  
