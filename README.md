@@ -4,9 +4,10 @@ This is a quick sketch outlining some ideas regarding the general structure of t
 
 The main API is designed around a IPrimBusinessLogicRegistrar class, which maintains a chain of IPrimBusinessLogic objects. In this super MVP example, the business logic object has to:
 
-* Providing the default TRS xform ops that the TRS tools should use for a given prim
+* Provide on demand, a complete meta-data description of what can, and cannot be done to a given attribute _(i.e. default value v.s. currentFrame, read only v.s. mutable, etc)_
+* As a layer on top of the raw attribute layer, be able to provide similar handling explicitly for xform ops _(we may need additional infomation, such as coordinate frames, etc. Most of this should be able to be computed)_
+* When the translate, scale, or rotate tools are activated on a specific prim, the business logic should provide the xform ops that those tools should operate on by default _(allows studios to use any conventions they want)_
 * Creating those TRS xform ops _(or not, the choice is yours!)_ in the correct place within the ordered xform ops.
-* Proiding, on demand, a complete meta-data description of what can, and cannot be done to the xformOp _(i.e. default value v.s. currentFrame, the value should be read only, the coordinate frame for the TRS tool to work in, etc)_
 
  The main reason is that I want to set up a chain of objects which determine the business logic, is that rather than juggling a matrix of options and flags _(e.g. push2Prim/readAnimatedValues)_, an object in the chain can intercept a request for meta-data about an xform op, or it can pass it down the chain if it doesn't care about that prim. I imagine a very simple stack of business logic could look like:
 
@@ -16,9 +17,11 @@ The idea is that we ship maya-usd with just the 'sensible defaults' as the only 
 
 ## Quick Overview of the code
 
-Within the api folder is the main API that would reside within the core maya-usd lib. The main file of interest is IPrimBusinessLogic.h, which tries to define a minimumal interface with which a studio can provide maya-usd with the business logic it needs. maya-usd probably wouldn't interact with that class directly, but instead interact only with the internal class you see in maya-usd-side/PrimBusinessLogic.h.   
+Within the api folder is the main API that would reside within the core maya-usd lib. The main file of interest is IPrimBusinessLogic.h, which tries to define a minimumal interface with which a studio can provide maya-usd with the business logic it needs. 
 
-Finally, on the animal logic side of things, we'd provide one or more logic objects so that maya-usd no longer has to worry about whether something should be read only, or what timecode you should be using. The studio will just tell maya-usd what to do :) 
+maya-usd probably wouldn't interact with that interface directly, but instead interact with the internal class you see in maya-usd-side/PrimBusinessLogic.h. The idea is to create the smallest/simplest interface possible for the maya-usd devs, one that allows for all of these descisions to be kicked down the road for specific studios/departments to worry about.
+
+Finally, on the animal logic side of things _(a.k.a. other studios)_, we'd provide one or more logic objects so that maya-usd no longer has to worry about whether something should be read only, or what timecode you should be using. The studio will just tell maya-usd what to do :) 
 
 ## Other thoughts
 
@@ -34,5 +37,4 @@ Finally, on the animal logic side of things, we'd provide one or more logic obje
 
 ## Possible things to think about....
 
-* Whilst this sketch looks primarily at UsdGeomXformable ops, I get the feeling this should be made more generic to work for all attributes. The same problems that apply when setting a translate value, are sadly the same problem we face when setting a cameras FOV. 
 * I am assuming that maya-usd would have a fallback mechanism to work based on a database of prim types, and their attributes _(and whether they should be keyed or not, etc)_. This would be nice if the config for this was stored as USD data _(because then overrides could be inserted at the studio/dept/user/shot level, and stage composition should take care of setting sensible defaults)_.  
