@@ -23,21 +23,17 @@ public:
     PrimBusinessLogic(IPrimBusinessLogicRegistrar* registrar = getSomeGlobalRegistrar())
         : m_registrar(registrar) {}
 
-    
+    /// given some random attribute on a prim, what does the studio business logic say we can do with it?
+    AttrInfo classifyAttr(const UsdPrim& prim, const UsdAttribute& attr)
+    {
+        return m_registrar->defaultBusinessLogic()->classifyAttr(prim, attr);
+    }
+
     /// given some random xform Op from a random xform, am I able to write to the value, 
     /// should I be looking at time samples or the default, etc etc.
     XformOpInfo classifyXformOp(const UsdGeomXformable& xform, const UsdGeomXformOp& xformOP)
     {
-        XformOpInfo info = m_registrar->defaultBusinessLogic()->classifyXformOp(xform, xformOP);
-        
-        // would probably want to compute coordinate frames, 
-        // whether it's a translate/scale/rotate op, 
-        // and all that other kinda jazz, right about now.... 
-
-        // might also want to run some sanity checks. 
-        // if either of the frames can't be inverted, ensure the kLock flag has been set.
-
-        return info;
+        return m_registrar->defaultBusinessLogic()->classifyXformOp(xform, xformOP);
     }
 
     /// \brief  grab (or create)

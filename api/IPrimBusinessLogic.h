@@ -1,10 +1,9 @@
 
 #pragma once
-
+#include "IAttrBusinessLogic.h"
 
 #include <cstdio>
 #include <cstdint>
-
 
 /// broadly speaking the business logic is going to break down into two main areas. 
 /// 
@@ -40,62 +39,105 @@ public:
     /// good software design this is not.
     void setNext(IPrimBusinessLogic* next)
         { m_next = next; }
-        
-    //-----------------------------------------------------------------------------------------------------------------------
-    /// Having thrown this code together quickly, 
-    //-----------------------------------------------------------------------------------------------------------------------
 
-    // A set of flags, some of which are easy enough to generate automatically. 
-    // kUseDefaultTIme, and kLock need to be provided by the studio and departments business logic. 
-    enum XformOpFlag
+    enum AttrFlag
     {
-        kUseDefaultTime = 1 << 0, ///< read/write using the default time
+        kUseDefaultTime = 1 << 0, ///< read/write attribute using the default time
         kLock = 1 << 1,  ///< if the clients business logic returns locked, do not modify attribute 
-        kCoordinateFrameNonInvertable = 1 << 2, ///< If we can't invert the previous transform ops in the stack, then we can't modify in TRS tools 
-        kParentFrameNonInvertable = 1 << 3, ///< If the coordinate frame cannot be inverted, we can't modify the values
-        kRotationOp = 1 << 4, ///< this xform op is a rotation op
-        kScaleOp = 1 << 5, ///< this xform op is a scale op
-        kTranslateOp = 1 << 6, ///< this xform op is a translation op
-        kEditPivotManip = 1 << 7, ///< display the edit pivot manip whilst treating as a translate op
+
+        /* there may be others we need, e.g. for unit conversion, can we create anim curve for attr, etc */
+
+        kLastAttrFLag = 1 << 2
     };
 
-    typedef uint32_t XformOpFlags;
+    /// package together all the flags and additional info provided by the studio business logic 
+    /// that determine what can/can't happen to any given attribute (i.e. should we be reading from the default time,
+    /// should the attr be locked for editing, etc, etc)
+    struct AttrInfo
+    {
+        typedef uint32_t AttrFlags;
+
+        // flags returns by studios business logic
+        AttrFlags flags;
+
+        bool setFlag(AttrFlags flag)
+            { flags |= flag; }
+
+        bool clearFlag(AttrFlags flag)
+            { flags &= ~flag; }
+
+        bool flagSet(AttrFlags flag) const
+            { return (flags & ~flag) != 0; }
+    };
+ 
+    //-----------------------------------------------------------------------------------------------------------------------
+    /// Given some xformOp that maya-usd wants to modify/query, we need to request  
+    //-----------------------------------------------------------------------------------------------------------------------
+
+    // A set of additional flags, mostly generated automatically by inspecting the xform ops.
+    enum XformOpFlag
+    {
+        kCoordinateFrameNonInvertable = kLastAttrFLag << 0, ///< If we can't invert the previous transform ops in the stack, then we can't modify in TRS tools 
+        kParentFrameNonInvertable = kLastAttrFLag << 1, ///< If the coordinate frame cannot be inverted, we can't modify the values
+        kRotationOp = kLastAttrFLag << 2, ///< this xform op is a rotation op
+        kScaleOp = kLastAttrFLag << 3, ///< this xform op is a scale op
+        kTranslateOp = kLastAttrFLag << 4, ///< this xform op is a translation op
+        kEditPivotManip = kLastAttrFLag << 5, ///< display the edit pivot manip whilst treating as a translate op
+        kLastXformOpFlag = kLastAttrFLag << 6
+    };
 
     /// all of the info we need from the business logic so that we know what we 
     /// can and can't do with this xform op (i.e. set, read from default value, etc) 
     /// 
-    struct XformOpInfo 
+    struct XformOpInfo : public AttrInfo 
     {
-        XformOpFlags flags; ///< The flags that denote what we can/can't do with this xform op.  
         MMatrix coordinateFrame; ///< we shoula be able to generate generically - just accumulate a matrix along the stack
         MMatrix parentFrame; ///< the parent transform
         UsdGeomXformOp xformOp;
         UsdGeomXformable xform;
 
-        bool flagSet(XformOpFlag flag) const
-          { return (flags & flag) != 0; }
-
         bool locked() const {
-            return flagSet(XformOpFlag::kLock) || 
-                   flagSet(XformOpFlag::kCoordinateFrameNonInvertable) || 
-                   flagSet(XformOpFlag::kParentFrameNonInvertable); 
+            return flagSet(kLock) || 
+                   flagSet(kCoordinateFrameNonInvertable) || 
+                   flagSet(kParentFrameNonInvertable); 
         }
 
         bool isRotateOp() const
-            { return flagSet(XformOpFlag::kRotationOp); }
+            { return flagSet(kRotationOp); }
             
         bool isScaleOp() const
-            { return flagSet(XformOpFlag::kScaleOp); }
+            { return flagSet(kScaleOp); }
             
         bool isTranslateOp() const
-            { return flagSet(XformOpFlag::kTranslateOp); }
+            { return flagSet(kTranslateOp); }
             
         bool isEditingPivots() const
-            { return flagSet(XformOpFlag::kTranslateOp) && flagSet(XformOpFlag::kEditPivotManip); }
+            { return flagSet(kTranslateOp) && flagSet(kEditPivotManip); }
     };
     
-    /// override to determine what can/can't be done with 
-    virtual XformOpInfo classifyXformOp(const UsdGeomXformable& xform, const UsdGeomXformOp& xformOP);
+    /// override to determine what can/can't be done with a specific attribute 
+    virtual AttrInfo classifyAttr(const UsdPrim& prim, const UsdAttribute& attr)
+    {
+        // some sensible maya default (possibly checking a schema for prim type, or other mechanism)
+        return AttrInfo { 0 };
+    }
+    
+    /// *possibly* doesn't need to be virtual, just might be handy if it was 
+    /// (e.g. if i want to enable custom handling for xform attrs only).  
+    virtual XformOpInfo classifyXformOp(const UsdGeomXformable& xform, const UsdGeomXformOp& xformOP)
+    {
+        // query the attribute info 
+        XformOpInfo info = classifyAttr(xform.GetPrim(), xformOP.GetAttribute()); 
+
+        // append additional data for transform ops
+        info.xform = xform;
+        info.xformOP = xformOP;
+
+        // probably not going to be done here, but we need to determoine whether the frame is invertable,
+        // otherwise some of the transform modes can't be applied?
+        info.computeCoordinateFrames();
+        return info;
+    }
 
     //-----------------------------------------------------------------------------------------------------------------------
     /// Given some prim, these methods return the default translate/scale/rotate values that UFE should manipulate. 

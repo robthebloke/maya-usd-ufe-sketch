@@ -9,19 +9,24 @@ class ReadOnlyLogic
 {
 public:
 
-    // grab the info from 'next' in the logic chain. Modify the returned result so that we lock the value.
-    XformOpInfo classifyXformOp(const UsdGeomXformable& xform, const UsdGeomXformOp& xformOP) override
+    /// grab the info from 'next' in the logic chain. Modify the returned result so that we lock the value.
+    AttrInfo classifyAttr(const UsdPrim& prim, const UsdAttribute& attr) override
     {
         // grab result from next up the chain
-        XformOpInfo info = next()->classifyXformOp(xform, xformOP);
+        AttrInfo info = next()->classifyAttr(prim, attr);
         // I don't care what the attribute is, you're not editing it!
-        info.setFlag(XformOpInfo::kLock);
+        info.setFlag(kLock);
         // and you will only ever look at the playback cache
-        info.clearFlag(XformOpInfo::kUseDefaultTime);
+        info.clearFlag(kUseDefaultTime);
         return info;
     }
+    
+    /// If we needed to override this to provide custom handling of Xform Ops, we could do. 
+    XformOpInfo classifyXformOp(const UsdGeomXformable& xform, const UsdGeomXformOp& xformOP) override
+    {
+        return IPrimBusinessLogic::classifyXformOp(xform, xformOP);
+    }
 };
-
 
 /// So this is a very simplistic overview of how the lighting department might want to implement
 /// their business logic. 
@@ -56,22 +61,22 @@ public:
     CurrentMode m_mode = kEditingLightRig;
 
     // grab the info from next in the chain, and modify so we lock the value.
-    XformOpInfo classifyXformOp(const UsdGeomXformable& xform, const UsdGeomXformOp& xformOP) override
+    AttrInfo classifyAttr(const UsdPrim& prim, const UsdAttribute& attr) override
     {
         // depending on the current user mode, allow/prevent various differing things.... 
         // It's probably they'd want to change modes at runtime. 
         switch(m_mode)
         {
-        case kEditingLightAnim: return _classifyXformOp_editLightAnim(xform, xformOP);
-        case kEditingLightRig: return _classifyXformOp_editLightRig(xform, xformOP);
-        case kEditingLightShaders: return _classifyXformOp_editLightShaders(xform, xformOP);
-        case kTestingAnimation: return _classifyXformOp_testingAnimation(xform, xformOP);
-        case kSupportTicket_AnimUser: return _classifyXformOp_supportTicket_animUser(xform, xformOP);
-        case kSupportTicket_DIUser: return _classifyXformOp_supportTicket_diUser(xform, xformOP);
-        case kSupportTicket_CompUser: return _classifyXformOp_supportTicket_compUser(xform, xformOP);
+        case kEditingLightAnim: return _classifyAttr_editLightAnim(prim, attr);
+        case kEditingLightRig: return _classifyAttr_editLightRig(prim, attr);
+        case kEditingLightShaders: return _classifyAttr_editLightShaders(prim, attr);
+        case kTestingAnimation: return _classifyAttr_testingAnimation(prim, attr);
+        case kSupportTicket_AnimUser: return _classifyAttr_supportTicket_animUser(prim, attr);
+        case kSupportTicket_DIUser: return _classifyAttr_supportTicket_diUser(prim, attr);
+        case kSupportTicket_CompUser: return _classifyAttr_supportTicket_compUser(prim, attr);
         default: break;
         }
-        return _classifyXformOp_editLightRig(xform, xformOP);;
+        return _classifyAttr_editLightRig(xform, xformOP);;
     }
 };
 
